@@ -16,6 +16,33 @@ function srend_create_pixels(width, height)
     return pixels
 end
 
+function srend_draw_pixel(x, y, color)
+    pixels[y + 1][x + 1].r = color.r
+    pixels[y + 1][x + 1].g = color.g
+    pixels[y + 1][x + 1].b = color.b
+end
+
+function srend_clear_pixels(color)
+    for y, row in pairs(pixels) do
+        for x, pixel in pairs(row) do
+            srend_draw_pixel(x - 1, y - 1, color)
+        end
+    end
+end
+
+function srend_draw_rect(x, y, width, height, color)
+    assert(type(x) == "number", "Provide a x value")
+    assert(type(y) == "number", "Provide a y value")
+    assert(type(width) == "number", "Provide a width value")
+    assert(type(height) == "number", "Provide a height value")
+
+    for xx = x, width do
+        for yy = y, height do
+            srend_draw_pixel(xx, yy, color)
+        end
+    end
+end
+
 function love.keypressed(key)
     if(key == "escape") then
         love.event.quit(0)
@@ -46,6 +73,11 @@ function srend_update_pixels()
 end
 
 function love.draw()
+    -- Update pixels
+    srend_clear_pixels(srend_color(0, 0, 0))
+    srend_draw_rect(20, 30, 200, 100, srend_color(1.0, 0.0, 0))
+
+    -- Draw pixels
     srend_update_pixels()
     love.graphics.draw(image, 0, 0)
 end
