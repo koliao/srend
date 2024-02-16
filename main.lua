@@ -2,6 +2,39 @@ function srend_color(r, g, b)
     return {r = r, g = g, b = b}
 end
 
+function srend_v2(x, y)
+    return {x = x, y = y}
+end
+
+function srend_v2_add(v1, v2)
+    return srend_v2(v1.x + v2.x, v1.y + v2.y)
+end
+
+function srend_v2_sub(v1, v2)
+    return srend_v2(v1.x - v2.x, v1.y - v2.y)
+end
+
+function srend_v2_scale(v, s)
+    return srend_v2(v.x * s, v.y * s)
+end
+
+function srend_v2_mul(v1, v2)
+    return srend_v2(v1.x * v2.x, v1.y * v2.y)
+end
+
+function srend_v2_length(v)
+    return math.sqrt(v.x*v.x + v.y*v.y)
+end
+
+function srend_v2_normalize(v)
+    local length = srend_v2_length(v)
+    if(length == 0) then
+        return srend_v2(0, 0)
+    end
+
+    return srend_v2(v.x / length, v.y / length)
+end
+
 function srend_create_pixels(width, height)
     local pixels = {}
 
@@ -43,6 +76,18 @@ function srend_draw_rect(x, y, width, height, color)
     end
 end
 
+function srend_draw_line(v1, v2, color)
+    local target_line = srend_v2_sub(v2, v1)
+    local length = srend_v2_length(target_line)
+    local dir = srend_v2_normalize(target_line)
+
+    for t = 0, length do
+        local traveled_distance = srend_v2_scale(dir, t)
+        local target_pixel = srend_v2_add(v1, traveled_distance)
+        srend_draw_pixel(math.floor(target_pixel.x), math.floor(target_pixel.y), color)
+    end
+end
+
 function love.keypressed(key)
     if(key == "escape") then
         love.event.quit(0)
@@ -75,7 +120,9 @@ end
 function love.draw()
     -- Update pixels
     srend_clear_pixels(srend_color(0, 0, 0))
-    srend_draw_rect(20, 30, 200, 100, srend_color(1.0, 0.0, 0))
+    --srend_draw_rect(20, 30, 200, 100, srend_color(1.0, 0.0, 0))
+    srend_draw_line(srend_v2(10, 20), srend_v2(300, 500), srend_color(1, 0, 0))
+    srend_draw_line(srend_v2(10, 20), srend_v2(300, 200), srend_color(1, 0, 0))
 
     -- Draw pixels
     srend_update_pixels()
