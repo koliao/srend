@@ -88,6 +88,12 @@ function srend_draw_line(v1, v2, color)
     end
 end
 
+function srend_draw_triangle(v1, v2, v3, color)
+    srend_draw_line(v1, v2, color)
+    srend_draw_line(v2, v3, color)
+    srend_draw_line(v3, v1, color)
+end
+
 function love.keypressed(key)
     if(key == "escape") then
         love.event.quit(0)
@@ -121,8 +127,20 @@ function love.draw()
     -- Update pixels
     srend_clear_pixels(srend_color(0, 0, 0))
     --srend_draw_rect(20, 30, 200, 100, srend_color(1.0, 0.0, 0))
-    srend_draw_line(srend_v2(10, 20), srend_v2(300, 500), srend_color(1, 0, 0))
+    srend_draw_line(srend_v2(0, 0), srend_v2(WIDTH-1, HEIGHT-1), srend_color(1, 0, 0))
     srend_draw_line(srend_v2(10, 20), srend_v2(300, 200), srend_color(1, 0, 0))
+    srend_draw_triangle(
+        srend_v2(100, 400),
+        srend_v2(200, 200),
+        srend_v2(300, 400),
+        srend_color(0.8, 1, 0)
+    )
+    srend_draw_triangle(
+        srend_v2(500, 100),
+        srend_v2(500, 400),
+        srend_v2(600, 400),
+        srend_color(1, 0, 0)
+    )
 
     -- Draw pixels
     srend_update_pixels()
