@@ -43,6 +43,38 @@ function srend_v2_normalize(v)
     return srend_v2(v.x / length, v.y / length)
 end
 
+function srend_v2_triangle_area(v1, v2, v3)
+    local ab = srend_v2_sub(v2, v1)
+    local ac = srend_v2_sub(v3, v1)
+    local ab_mag = srend_v2_length(ab)
+    local ac_mag = srend_v2_length(ac) 
+    local ab_c2 = ab.y > 0 and ab.x < 0
+    local ab_c3 = ab.y < 0 and ab.x < 0
+    local ab_c4 = ab.y < 0 and ab.x > 0
+    local ab_angle = math.atan2(ab.y , ab.x)
+    if(ab_c2) then
+        ab_angle = ab_angle + math.pi/4
+    elseif(ab_c3) then
+        ab_angle = ab_angle + 2*math.pi/4
+    elseif(ab_c4) then
+        ab_angle = ab_angle + 3*math.pi/4
+    end
+    local ac_c2 = ac.y > 0 and ac.x < 0
+    local ac_c3 = ac.y < 0 and ac.x < 0
+    local ac_c4 = ac.y < 0 and ac.x > 0
+    local ac_angle = math.atan2(ac.y , ac.x)
+    if(ac_c2) then
+        ac_angle = ac_angle + math.pi/4
+    elseif(ac_c3) then
+        ac_angle = ac_angle + 2*math.pi/4
+    elseif(ac_c4) then
+        ac_angle = ac_angle + 3*math.pi/4
+    end
+    local angle = math.abs(ab_angle - ac_angle)
+
+    return ( ab_mag * ac_mag * math.sin(angle) ) / 2
+end
+
 function srend_create_canvas(width, height)
     local canvas = {}
 
@@ -106,6 +138,9 @@ function srend_draw_line(canvas, v1, v2, color)
 end
 
 function srend_draw_triangle(canvas, v1, v2, v3, color)
+    local fill_mode = "BARYCENTRIC"
+
+    -- Bounding box
     local min_x = math.min(math.min(v1.x, v2.x), v3.x)
     local min_y = math.min(math.min(v1.y, v2.y), v3.y)
     local max_x = math.max(math.max(v1.x, v2.x), v3.x) + 1
@@ -125,25 +160,52 @@ function srend_draw_triangle(canvas, v1, v2, v3, color)
     srend_draw_line(tmp_canvas, offset_v3, offset_v1, color)
 
     -- Line fill
-    for y, row in pairs(tmp_canvas) do
-        local entered_triangle = false
-        local inside_triangle = false
-        local left_x  = nil
-        local right_x = nil
+    if(fill_mode == "LINE_SWEEP") then
+        for y, row in pairs(tmp_canvas) do
+            local entered_triangle = false
+            local inside_triangle = false
+            local left_x  = nil
+            local right_x = nil
 
-        for x, pixel in pairs(row) do
-            if(srend_color_eq(pixel, color)) then -- TODO: what if color is black?
-                if(not left_x) then
-                    left_x = x
-                else
-                    right_x = x
+            for x, pixel in pairs(row) do
+                if(srend_color_eq(pixel, color)) then -- TODO: what if color is black?
+                    if(not left_x) then
+                        left_x = x
+                    else
+                        right_x = x
+                    end
+                end
+            end
+
+            if(left_x and right_x) then
+                for x, pixel in pairs(row) do
+                    local inside_triangle = x >= left_x and x <= right_x
+                    if(inside_triangle) then
+                        srend_draw_pixel(tmp_canvas, x - 1, y - 1, color)
+                    end
                 end
             end
         end
 
-        if(left_x and right_x) then
+    elseif(fill_mode == "BARYCENTRIC") then
+        local area = srend_v2_triangle_area(v1, v2, v3)
+
+        for y, row in pairs(tmp_canvas) do
             for x, pixel in pairs(row) do
-                local inside_triangle = x >= left_x and x <= right_x
+                local pixel = srend_v2(x - 1 + min_x, y - 1 + min_y)
+                local a0 = srend_v2_triangle_area(v3, v2, pixel)
+                local a1 = srend_v2_triangle_area(v3, v1, pixel)
+                local a2 = srend_v2_triangle_area(v1, v2, pixel)
+
+                local alpha = a0 / area
+                local beta  = a1 / area
+                local gama  = a2 / area
+
+                local c1 = 0 < alpha and alpha < 1
+                local c2 = 0 < beta and beta < 1
+                local c3 = 0 < gama and gama < 1
+                local c4 = alpha + gama + beta <= 1
+                local inside_triangle = c1 and c2 and c3 and c4
                 if(inside_triangle) then
                     srend_draw_pixel(tmp_canvas, x - 1, y - 1, color)
                 end
@@ -189,6 +251,7 @@ function srend_update_pixels(canvas)
 end
 
 function love.draw()
+    print(srend_v2_triangle_area(srend_v2(0, 0), srend_v2(10, 10), srend_v2(0, 10)))
     -- Update pixels
     srend_clear_pixels(canvas, srend_color(0, 0, 0))
     --srend_draw_rect(20, 30, 200, 100, srend_color(1.0, 0.0, 0))
