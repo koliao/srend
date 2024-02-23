@@ -6,15 +6,17 @@ function load_model(path)
     local mesh = {}
     local s = 100
 
-    for _, f in pairs(object.f) do
+    for j, f in pairs(object.f) do
         local v1 = object.v[f[1].v]
         local v2 = object.v[f[2].v]
         local v3 = object.v[f[3].v]
+        local n = object.vn[j]
 
         table.insert(mesh, {
             srend_v3(math.floor(s*v1.x), math.floor(s*v1.y), math.floor(s*v1.z)),
             srend_v3(math.floor(s*v2.x), math.floor(s*v2.y), math.floor(s*v2.z)),
-            srend_v3(math.floor(s*v3.x), math.floor(s*v3.y), math.floor(s*v3.z))
+            srend_v3(math.floor(s*v3.x), math.floor(s*v3.y), math.floor(s*v3.z)),
+            srend_v3(n.x, n.y, n.z)
         } )
 
         if(#f > 3) then
@@ -27,7 +29,8 @@ function load_model(path)
                 table.insert(mesh, {
                     srend_v3(math.floor(s*v1.x), math.floor(s*v1.y), math.floor(s*v1.z)),
                     srend_v3(math.floor(s*pv.x), math.floor(s*pv.y), math.floor(s*pv.z)),
-                    srend_v3(math.floor(s*cv.x), math.floor(s*cv.y), math.floor(s*cv.z))
+                    srend_v3(math.floor(s*cv.x), math.floor(s*cv.y), math.floor(s*cv.z)),
+                    srend_v3(n.x, n.y, n.z)
                 } )
 
                 i = i + 1
@@ -48,6 +51,10 @@ end
 
 function srend_color_eq(c1, c2)
     return (c1.r == c2.r and c1.g == c2.g and c1.b == c2.b and c1.a == c2.a)
+end
+
+function srend_lerp(t, a, b)
+    return (1-t)*a + t*b
 end
 
 function srend_v2(x, y)
@@ -103,6 +110,10 @@ function srend_v3_mul(v1, v2)
     return srend_v3(v1.x * v2.x, v1.y * v2.y, v1.z * v2.z)
 end
 
+function srend_v3_dot(v1, v2)
+    return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z
+end
+
 function srend_v3_length(v)
     return math.sqrt(v.x*v.x + v.y*v.y + v.z*v.z)
 end
@@ -119,70 +130,73 @@ end
 function srend_v2_triangle_area(v1, v2, v3)
     local ab = srend_v2_sub(v2, v1)
     local ac = srend_v2_sub(v3, v1)
+
     local ab_mag = srend_v2_length(ab)
     local ac_mag = srend_v2_length(ac) 
-    local ab_c2 = ab.y > 0 and ab.x < 0
-    local ab_c3 = ab.y < 0 and ab.x < 0
-    local ab_c4 = ab.y < 0 and ab.x > 0
-    local ab_angle = math.atan2(ab.y , ab.x)
-    if(ab_c2) then
-        ab_angle = ab_angle + math.pi/4
-    elseif(ab_c3) then
-        ab_angle = ab_angle + 2*math.pi/4
-    elseif(ab_c4) then
-        ab_angle = ab_angle + 3*math.pi/4
-    end
-    local ac_c2 = ac.y > 0 and ac.x < 0
-    local ac_c3 = ac.y < 0 and ac.x < 0
-    local ac_c4 = ac.y < 0 and ac.x > 0
-    local ac_angle = math.atan2(ac.y , ac.x)
-    if(ac_c2) then
-        ac_angle = ac_angle + math.pi/4
-    elseif(ac_c3) then
-        ac_angle = ac_angle + 2*math.pi/4
-    elseif(ac_c4) then
-        ac_angle = ac_angle + 3*math.pi/4
-    end
-    local angle = math.abs(ab_angle - ac_angle)
 
-    return ( ab_mag * ac_mag * math.sin(angle) ) / 2
+    local ab_angle = math.atan2(ab.y, ab.x)
+    local ac_angle = math.atan2(ac.y, ac.x)
+
+    local ab_ac_angle = math.abs(ab_angle - ac_angle)
+    if(ab_ac_angle > math.pi) then
+        ab_ac_angle = 2*math.pi - ab_ac_angle
+    end
+
+    return ( ab_mag * ac_mag * math.sin(ab_ac_angle) ) / 2
 end
 
 function srend_create_canvas(width, height)
     local canvas = {}
+    local z_buffer = {}
 
     for y = 1, height do
         table.insert(canvas, {})
+        table.insert(z_buffer, {})
 
         for x = 1, width do
             table.insert(canvas[y], srend_color(0, 0, 0, 0))
+            table.insert(z_buffer[y], nil)
         end
     end
 
-    return canvas
+    return {
+        buffer   = canvas,
+        z_buffer = z_buffer
+    }
 end
 
-function srend_draw_pixel(canvas, x, y, color)
+function srend_draw_pixel(canvas, x, y, color, new_z_value)
     -- Bounds check
-    if(y < 0 or y >= #canvas or x < 0 or x >= #canvas[1]) then
+    if(y < 0 or y >= #canvas.buffer or x < 0 or x >= #canvas.buffer[1]) then
         return
     end
 
     -- TODO: add blend modes
     if(color.a == 1) then
-        canvas[y + 1][x + 1].r = color.r
-        canvas[y + 1][x + 1].g = color.g
-        canvas[y + 1][x + 1].b = color.b
-        canvas[y + 1][x + 1].a = color.a
+        local z_value = canvas.z_buffer[y + 1][x + 1]
+        canvas.buffer[y + 1][x + 1].r = color.r
+        canvas.buffer[y + 1][x + 1].g = color.g
+        canvas.buffer[y + 1][x + 1].b = color.b
+        canvas.buffer[y + 1][x + 1].a = color.a
+    end
+end
+
+function srend_clear_z_buffer(canvas)
+    for y, row in pairs(canvas.z_buffer) do
+        for x, pixel in pairs(row) do
+            row[x] = -1/0
+        end
     end
 end
 
 function srend_clear_pixels(canvas, color)
-    for y, row in pairs(canvas) do
+    for y, row in pairs(canvas.buffer) do
         for x, pixel in pairs(row) do
             srend_draw_pixel(canvas, x - 1, y - 1, color)
         end
     end
+
+    srend_clear_z_buffer(canvas)
 end
 
 function srend_draw_rect(canvas, x, y, width, height, color)
@@ -213,7 +227,7 @@ end
 function srend_draw_triangle(canvas, v1, v2, v3, color, mode)
     -- mode = "line" | "fill"
 
-    local fill_mode = "LINE_SWEEP"
+    local fill_mode = "BARYCENTRIC"
 
     -- Bounding box
     local min_x = math.min(math.min(v1.x, v2.x), v3.x)
@@ -237,7 +251,7 @@ function srend_draw_triangle(canvas, v1, v2, v3, color, mode)
     -- Line fill
     if(mode == "fill") then
         if(fill_mode == "LINE_SWEEP") then
-            for y, row in pairs(tmp_canvas) do
+            for y, row in pairs(tmp_canvas.buffer) do
                 local entered_triangle = false
                 local inside_triangle = false
                 local left_x  = nil
@@ -257,7 +271,13 @@ function srend_draw_triangle(canvas, v1, v2, v3, color, mode)
                     for x, pixel in pairs(row) do
                         local inside_triangle = x >= left_x and x <= right_x
                         if(inside_triangle) then
-                            srend_draw_pixel(tmp_canvas, x - 1, y - 1, color)
+                            local p = srend_v2(x, y)
+                            local d1 = srend_lerp(srend_v2_length(srend_v2_sub(v1, p)), 1, 0)*v1.z
+                            local d2 = srend_lerp(srend_v2_length(srend_v2_sub(v2, p)), 1, 0)*v2.z
+                            local d3 = srend_lerp(srend_v2_length(srend_v2_sub(v3, p)), 1, 0)*v3.z
+
+                            local z_value = (d1 + d2 + d3) / 3
+                            srend_draw_pixel(tmp_canvas, x - 1, y - 1, color, z_value)
                         end
                     end
                 end
@@ -266,22 +286,18 @@ function srend_draw_triangle(canvas, v1, v2, v3, color, mode)
         elseif(fill_mode == "BARYCENTRIC") then -- TODO: fix
             local area = srend_v2_triangle_area(v1, v2, v3)
 
-            for y, row in pairs(tmp_canvas) do
-                for x, pixel in pairs(row) do
-                    local pixel = srend_v2(x - 1 + min_x, y - 1 + min_y)
-                    local a0 = srend_v2_triangle_area(v3, v2, pixel)
-                    local a1 = srend_v2_triangle_area(v3, v1, pixel)
-                    local a2 = srend_v2_triangle_area(v1, v2, pixel)
+            for y, row in pairs(tmp_canvas.buffer) do
+                for x, _ in pairs(row) do
+                    local point = srend_v2(x - 1 + min_x, y - 1 + min_y)
 
-                    local alpha = a0 / area
-                    local beta  = a1 / area
-                    local gama  = a2 / area
+                    local a1 = srend_v2_triangle_area(point, v2, v3)
+                    local a2 = srend_v2_triangle_area(point, v3, v1)
+                    local a3 = srend_v2_triangle_area(point, v1, v2)
 
-                    local c1 = 0 < alpha and alpha < 1
-                    local c2 = 0 < beta and beta < 1
-                    local c3 = 0 < gama and gama < 1
-                    local c4 = alpha + gama + beta <= 1
-                    local inside_triangle = c1 and c2 and c3 and c4
+                    local area_sum = a1 + a2 + a3
+
+                    local error = 0.001
+                    local inside_triangle = area_sum <= area + error
                     if(inside_triangle) then
                         srend_draw_pixel(tmp_canvas, x - 1, y - 1, color)
                     end
@@ -291,7 +307,7 @@ function srend_draw_triangle(canvas, v1, v2, v3, color, mode)
     end
 
     -- Draw final triangle to original canvas
-    for y, row in pairs(tmp_canvas) do
+    for y, row in pairs(tmp_canvas.buffer) do
         for x, pixel in pairs(row) do
             srend_draw_pixel(canvas, x - 1 + min_x, y - 1 + min_y, pixel)
         end
@@ -333,17 +349,8 @@ function srend_draw_mesh(canvas, mesh, offset_x, offset_y)
         local v2 = srend_v3(t[2].x + offset_x, t[2].y + offset_y, t[2].z)
         local v3 = srend_v3(t[3].x + offset_x, t[3].y + offset_y, t[3].z)
 
-        local d = srend_v3_length(srend_v3_sub(light_pos, v1))
-        local min = 100
-        local max = 800
-        local color = nil
-        if(d > min and d < max) then
-            local t = (d - min) / (max - min)
-            color = srend_color(t, t, t)
-        else
-            color = srend_color(0, 0, 0)
-        end
-
+        local color = random_colors[(i%#random_colors) + 1]
+        -- Lambertian
         srend_draw_triangle(canvas, v1, v2, v3, color, "fill")
     end
 end
@@ -370,7 +377,7 @@ end
 
 function srend_update_pixels(canvas)
     local map_function = function(x, y, r, g, b, a)
-        local color = canvas[y + 1][x + 1]
+        local color = canvas.buffer[y + 1][x + 1]
 
         return color.r, color.g, color.b, 1
     end
@@ -379,8 +386,10 @@ function srend_update_pixels(canvas)
     image:replacePixels(image_data)
 end
 
+function love.update(dt)
+end
+
 function love.draw()
-    print(srend_v2_triangle_area(srend_v2(0, 0), srend_v2(10, 10), srend_v2(0, 10)))
     -- Update pixels
     srend_clear_pixels(canvas, srend_color(0, 0, 0))
 
@@ -421,9 +430,23 @@ function love.draw()
             srend_v3(200, 50, 0)
         }
     }
-    srend_draw_mesh(canvas, model, WIDTH/2, HEIGHT/4)
+    srend_draw_mesh(canvas, model, WIDTH/2, HEIGHT/4, "fill")
+    -- srend_draw_triangle(
+    --     canvas,
+    --     srend_v2(100, 400),
+    --     srend_v2(300, 200),
+    --     srend_v2(500, 400),
+    --     srend_color(1, 0, 0),
+    --     "fill"
+    -- )
 
     -- Draw pixels
     srend_update_pixels(canvas)
+
+    print( srend_v2_triangle_area(
+        srend_v2(-100, -110),
+        srend_v2(-80, -100),
+        srend_v2(-100, -100)
+    ) )
     love.graphics.draw(image, 0, 0)
 end
