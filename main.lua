@@ -57,6 +57,22 @@ function srend_lerp(t, a, b)
     return (1-t)*a + t*b
 end
 
+function srend_color_scale(color, s)
+    local r = s*color.r
+    local g = s*color.g
+    local b = s*color.b
+
+    return srend_color(r, g, b)
+end
+
+function srend_color_mix(color_a, color_b)
+    local r = color_a.r + color_b.r
+    local g = color_a.g + color_b.g
+    local b = color_a.b + color_b.b
+
+    return srend_color(r, g, b)
+end
+
 function srend_v2(x, y)
     return {x = x, y = y}
 end
@@ -243,14 +259,14 @@ function srend_draw_triangle(canvas, v1, v2, v3, color, mode)
     local offset_v2 = srend_v2_sub(v2, srend_v2(min_x, min_y))
     local offset_v3 = srend_v2_sub(v3, srend_v2(min_x, min_y))
 
-    -- Draw triangle in tmp canvas
-    srend_draw_line(tmp_canvas, offset_v1, offset_v2, color)
-    srend_draw_line(tmp_canvas, offset_v2, offset_v3, color)
-    srend_draw_line(tmp_canvas, offset_v3, offset_v1, color)
-    
     -- Line fill
     if(mode == "fill") then
         if(fill_mode == "LINE_SWEEP") then
+            -- Draw triangle in tmp canvas
+            srend_draw_line(tmp_canvas, offset_v1, offset_v2, color)
+            srend_draw_line(tmp_canvas, offset_v2, offset_v3, color)
+            srend_draw_line(tmp_canvas, offset_v3, offset_v1, color)
+    
             for y, row in pairs(tmp_canvas.buffer) do
                 local entered_triangle = false
                 local inside_triangle = false
@@ -294,16 +310,36 @@ function srend_draw_triangle(canvas, v1, v2, v3, color, mode)
                     local a2 = srend_v2_triangle_area(point, v3, v1)
                     local a3 = srend_v2_triangle_area(point, v1, v2)
 
+                    local alpha = a1/area
+                    local beta  = a2/area
+                    local gama  = a3/area
+
                     local area_sum = a1 + a2 + a3
 
                     local error = 0.001
                     local inside_triangle = area_sum <= area + error
+
+                    -- TODO: use vertex color
+                    local v1_color = srend_color(1, 1, 1)
+                    local v2_color = srend_color(1, 0, 0)
+                    local v3_color = srend_color(0, 0, 1)
+
+                    local alpha_color = srend_color_scale(v1_color, alpha)
+                    local beta_color  = srend_color_scale(v2_color, beta)
+                    local gama_color  = srend_color_scale(v3_color, gama)
+                    local pixel_color = srend_color_mix(alpha_color, beta_color)
+                    pixel_color = srend_color_mix(pixel_color, gama_color)
+
                     if(inside_triangle) then
-                        srend_draw_pixel(tmp_canvas, x - 1, y - 1, color)
+                        srend_draw_pixel(tmp_canvas, x - 1, y - 1, pixel_color)
                     end
                 end
             end
         end
+    else
+        srend_draw_line(tmp_canvas, offset_v1, offset_v2, color)
+        srend_draw_line(tmp_canvas, offset_v2, offset_v3, color)
+        srend_draw_line(tmp_canvas, offset_v3, offset_v1, color)
     end
 
     -- Draw final triangle to original canvas
@@ -430,15 +466,15 @@ function love.draw()
             srend_v3(200, 50, 0)
         }
     }
-    srend_draw_mesh(canvas, model, WIDTH/2, HEIGHT/4, "fill")
-    -- srend_draw_triangle(
-    --     canvas,
-    --     srend_v2(100, 400),
-    --     srend_v2(300, 200),
-    --     srend_v2(500, 400),
-    --     srend_color(1, 0, 0),
-    --     "fill"
-    -- )
+    --srend_draw_mesh(canvas, model, WIDTH/2, HEIGHT/4, "fill")
+    srend_draw_triangle(
+        canvas,
+        srend_v2(100, 400),
+        srend_v2(300, 200),
+        srend_v2(500, 400),
+        srend_color(1, 0, 0),
+        "fill"
+    )
 
     -- Draw pixels
     srend_update_pixels(canvas)
