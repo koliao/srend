@@ -166,6 +166,50 @@ function srend_v3_normalize(v)
     return srend_v3(v.x / length, v.y / length, v.z / length)
 end
 
+function srend_3x3_matrix(a, b, c, d, e, f, g, h, i)
+    if(a) then
+        return {
+            {a, b, c},
+            {d, e, f},
+            {g, h, i}
+        }
+    end
+
+    return {
+        {1, 0, 0},
+        {0, 1, 0},
+        {0, 0, 1}
+    }
+end
+
+function srend_mat3x3_v3_mul(m, v)
+    return srend_v3(
+        m[1][1] * v.x + m[1][2] * v.y + m[1][3] * v.z,
+        m[2][1] * v.x + m[2][2] * v.y + m[2][3] * v.z,
+        m[3][1] * v.x + m[3][2] * v.y + m[3][3] * v.z
+    )
+end
+
+function srend_mat3x3_mat3x3_mul(m1, m2)
+    if(#m1 == 0 or #m2 == 0) then
+        return
+    end
+
+    return srend_3x3_matrix(
+        m1[1][1] * m2[1][1] + m1[1][2] * m2[1][2] + m1[1][3] * m2[1][3],
+        m1[1][1] * m2[2][1] + m1[1][2] * m2[2][2] + m1[1][3] * m2[2][3],
+        m1[1][1] * m2[3][1] + m1[1][2] * m2[3][2] + m1[1][3] * m2[3][3],
+
+        m1[2][1] * m2[1][1] + m1[2][2] * m2[1][2] + m1[2][3] * m2[1][3],
+        m1[2][1] * m2[2][1] + m1[2][2] * m2[2][2] + m1[2][3] * m2[2][3],
+        m1[2][1] * m2[3][1] + m1[2][2] * m2[3][2] + m1[2][3] * m2[3][3],
+
+        m1[3][1] * m2[1][1] + m1[3][2] * m2[1][2] + m1[3][3] * m2[1][3],
+        m1[3][1] * m2[2][1] + m1[3][2] * m2[2][2] + m1[3][3] * m2[2][3],
+        m1[3][1] * m2[3][1] + m1[3][2] * m2[3][2] + m1[3][3] * m2[3][3]
+    )
+end
+
 function srend_v2_triangle_area(v1, v2, v3)
     local ab = srend_v2_sub(v2, v1)
     local ac = srend_v2_sub(v3, v1)
@@ -205,8 +249,16 @@ function srend_create_canvas(width, height)
 end
 
 function srend_draw_pixel(canvas, x, y, color, new_z_value, nx, ny, nz)
+    x = math.floor(x)
+    y = math.floor(y)
     -- Bounds check
-    if(y < 0 or y >= #canvas.buffer or x < 0 or x >= #canvas.buffer[1]) then
+    if(y < 0 or x < 0 or
+        y >= #canvas.buffer or x >= #canvas.buffer[1]
+    ) then
+        return
+    end
+
+    if(not canvas.z_buffer[y + 1]) then
         return
     end
 
@@ -216,9 +268,9 @@ function srend_draw_pixel(canvas, x, y, color, new_z_value, nx, ny, nz)
         if(new_z_value ~= nil) then
             if(z_value == nil or z_value <= new_z_value) then
                 if(nx and ny and nz) then
-                    local light_dir = srend_v3_normalize(srend_v3(1, y_value, 1))
+                    local light_dir = srend_v3_normalize(srend_v3(0, y_value, 1))
                     local intensity = srend_v3_dot(srend_v3(nx, ny, nz), light_dir)
-                    color = srend_color_scale(srend_color(1, 1, 1), intensity)
+                    color = srend_color_scale(color, intensity)
                     color = srend_color_add(color, srend_color(0.2, 0.2, 0.2))
                 end
 
@@ -280,11 +332,24 @@ function srend_draw_line(canvas, v1, v2, color)
     end
 end
 
-function srend_draw_triangle(canvas, v1, v2, v3, color, mode, n1, n2, n3)
+function srend_draw_triangle(canvas, v1, v2, v3, color, mode, n1, n2, n3, transform)
         -- local intensity = srend_v3_dot(n1, light_dir)
         -- local color = srend_color_scale(srend_color(1, 1, 1), intensity)
         -- color = srend_color_add(color, srend_color(0.1, 0.1, 0.1))
     -- mode = "line" | "fill"
+
+    local origin = srend_v3(WIDTH/2, HEIGHT/2, 0)
+    --local origin = srend_v3(0, 0, 0)
+
+    if(transform) then
+        v1 = srend_v3_add(srend_mat3x3_v3_mul(transform, v1), origin)
+        v2 = srend_v3_add(srend_mat3x3_v3_mul(transform, v2), origin)
+        v3 = srend_v3_add(srend_mat3x3_v3_mul(transform, v3), origin)
+    else
+        v1 = srend_v3_add(v1, origin)
+        v2 = srend_v3_add(v2, origin)
+        v3 = srend_v3_add(v3, origin)
+    end
 
     local fill_mode = "BARYCENTRIC"
 
@@ -363,8 +428,8 @@ function srend_draw_triangle(canvas, v1, v2, v3, color, mode, n1, n2, n3)
                     local inside_triangle = area_sum <= area + error
 
                     -- TODO: use vertex color
-                    local v1_color = srend_color(1, 1, 1)
-                    local v2_color = srend_color(1, 0, 0)
+                    local v1_color = srend_color(1, 0, 0)
+                    local v2_color = srend_color(0, 1, 0)
                     local v3_color = srend_color(0, 0, 1)
 
                     local alpha_color = srend_color_scale(v1_color, alpha)
@@ -379,14 +444,18 @@ function srend_draw_triangle(canvas, v1, v2, v3, color, mode, n1, n2, n3)
                     end
 
                     if(inside_triangle) then
-                        local normal_alpha = srend_v3_scale(n1, alpha)
-                        local normal_beta  = srend_v3_scale(n2, beta)
-                        local normal_gama  = srend_v3_scale(n3, gama)
+                        if(n1 and n2 and n3) then
+                            local normal_alpha = srend_v3_scale(n1, alpha)
+                            local normal_beta  = srend_v3_scale(n2, beta)
+                            local normal_gama  = srend_v3_scale(n3, gama)
 
-                        local normal = srend_v3_add(normal_alpha, normal_beta)
-                        normal = srend_v3_normalize(srend_v3_add(normal, normal_gama))
+                            local normal = srend_v3_add(normal_alpha, normal_beta)
+                            normal = srend_v3_normalize(srend_v3_add(normal, normal_gama))
 
-                        srend_draw_pixel(tmp_canvas, x - 1, y - 1, color, z_value, normal.x, normal.y, normal.z)
+                            srend_draw_pixel(tmp_canvas, x - 1, y - 1, color, z_value, normal.x, normal.y, normal.z)
+                        else
+                            srend_draw_pixel(tmp_canvas, x - 1, y - 1, pixel_color, z_value)
+                        end
                     end
                 end
             end
@@ -428,7 +497,7 @@ random_colors = {
     srend_color(math.random(), math.random(), math.random()),
 }
 
-function srend_draw_mesh(canvas, mesh, offset_x, offset_y)
+function srend_draw_mesh(canvas, mesh, offset_x, offset_y, transform)
     local offset_x = offset_x or 0
     local offset_y = offset_y or 0
 
@@ -442,9 +511,9 @@ function srend_draw_mesh(canvas, mesh, offset_x, offset_y)
         local n1 = t[4]
         local n2 = t[5]
         local n3 = t[6]
-        local color = srend_color(1, 1, 1)
+        local color = random_colors[(i%#random_colors) + 1]
 
-        srend_draw_triangle(canvas, v1, v2, v3, color, "fill", n1, n2, n3)
+        srend_draw_triangle(canvas, v1, v2, v3, color, "line", n1, n2, n3, transform)
     end
 end
 
@@ -452,8 +521,30 @@ function love.keypressed(key)
     if(key == "escape") then
         love.event.quit(0)
     end
-end
+    if(key == "up") then
+        y_value = math.min(y_value + 0.1, 1)
+    end
+    if(key == "down") then
+        y_value = math.max(y_value - 0.1, -1)
+    end
 
+    if(key == "left") then
+        z_angle = z_angle + 0.1
+        rotation_matrix = srend_3x3_matrix(
+            math.cos(z_angle), 0, math.sin(z_angle),
+            0, 1, 0,
+            math.sin(z_angle), 0, math.cos(z_angle)
+        )
+    end
+    if(key == "right") then
+        z_angle = z_angle - 0.1
+        rotation_matrix = srend_3x3_matrix(
+            math.cos(z_angle), 0, math.sin(z_angle),
+            0, 1, 0,
+            math.sin(z_angle), 0, math.cos(z_angle)
+        )
+    end
+end
 
 function love.load()
     -- Hardcoded width and height
@@ -465,7 +556,70 @@ function love.load()
     image_data = love.image.newImageData(WIDTH, HEIGHT) 
     image = love.graphics.newImage(image_data)
 
-    model = load_model("models/teapot.obj")
+    z_angle = 0
+    rotation_matrix = srend_3x3_matrix(
+        1, 0, 0,
+        0, math.cos(z_angle),   -math.sin(z_angle),
+        0, math.sin(z_angle),    math.cos(z_angle)
+    )
+    scale_matrix = srend_3x3_matrix(
+        100, 0,   0,
+        0,   100, 0,
+        0,   0,   100
+    )
+    if(false) then
+        model = load_model("models/duck.obj")
+    else
+        model = {
+            -- Front
+            {
+                srend_v3(-1,  1,  1),
+                srend_v3( 1,  1,  1),
+                srend_v3( 1, -1,  1)
+            },
+            {
+                srend_v3(-1,  1,  1),
+                srend_v3(-1, -1,  1),
+                srend_v3( 1, -1,  1)
+            },
+
+            -- Back
+            {
+                srend_v3(-1,  1, -1),
+                srend_v3( 1,  1, -1),
+                srend_v3( 1, -1, -1)
+            },
+            {
+                srend_v3(-1,  1, -1),
+                srend_v3(-1, -1, -1),
+                srend_v3( 1, -1, -1)
+            },
+
+            -- Left
+            {
+                srend_v3(-1,  1,  1),
+                srend_v3(-1, -1,  1),
+                srend_v3(-1, -1, -1)
+            },
+            {
+                srend_v3(-1,  1,  1),
+                srend_v3(-1,  1, -1),
+                srend_v3(-1, -1, -1)
+            },
+
+            -- Right
+            {
+                srend_v3( 1,  1,  1),
+                srend_v3( 1, -1,  1),
+                srend_v3( 1, -1, -1)
+            },
+            {
+                srend_v3( 1,  1,  1),
+                srend_v3( 1,  1, -1),
+                srend_v3( 1, -1, -1)
+            },
+        }
+    end
 end
 
 function srend_update_pixels(canvas)
@@ -480,10 +634,7 @@ function srend_update_pixels(canvas)
 end
 
 y_value = 0
-t = 0
 function love.update(dt)
-    t = t + dt
-    y_value = math.sin(t)
 end
 
 function love.draw()
@@ -527,14 +678,19 @@ function love.draw()
             srend_v3(200, 50, 0)
         }
     }
-    srend_draw_mesh(canvas, model, WIDTH/2, HEIGHT/4, "fill")
+    local transform = srend_mat3x3_mat3x3_mul(rotation_matrix, scale_matrix)
+    srend_draw_mesh(canvas, model, 0, 0, transform)
     -- srend_draw_triangle(
     --     canvas,
-    --     srend_v3(100, 400, 0),
-    --     srend_v3(300, 200, 0),
-    --     srend_v3(500, 400, 0),
+    --     srend_v3(1 ,  1, 0),
+    --     srend_v3(0 , -1, 0),
+    --     srend_v3(-1,  1, 0),
     --     srend_color(1, 0, 0),
-    --     "fill"
+    --     "fill",
+    --     nil,
+    --     nil,
+    --     nil,
+    --     transform
     -- )
     -- srend_draw_triangle(
     --     canvas,
