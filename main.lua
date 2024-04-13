@@ -424,7 +424,7 @@ function srend_draw_triangle(canvas, v1, v2, v3, color, mode, n1, n2, n3, transf
 
                     local area_sum = a1 + a2 + a3
 
-                    local error = 0.001
+                    local error = 0.00001
                     local inside_triangle = area_sum <= area + error
 
                     -- TODO: use vertex color
@@ -513,7 +513,7 @@ function srend_draw_mesh(canvas, mesh, offset_x, offset_y, transform)
         local n3 = t[6]
         local color = random_colors[(i%#random_colors) + 1]
 
-        srend_draw_triangle(canvas, v1, v2, v3, color, "line", n1, n2, n3, transform)
+        srend_draw_triangle(canvas, v1, v2, v3, srend_color(1, 1, 1), "fill", n1, n2, n3, transform)
     end
 end
 
@@ -551,6 +551,7 @@ function love.load()
     WIDTH = 800
     HEIGHT = 600
 
+    love.window.setTitle("Srend")
     canvas = srend_create_canvas(WIDTH, HEIGHT)
 
     image_data = love.image.newImageData(WIDTH, HEIGHT) 
@@ -559,16 +560,16 @@ function love.load()
     z_angle = 0
     rotation_matrix = srend_3x3_matrix(
         1, 0, 0,
-        0, math.cos(z_angle),   -math.sin(z_angle),
-        0, math.sin(z_angle),    math.cos(z_angle)
+        0, 1, 0,
+        0, 0, 1
     )
     scale_matrix = srend_3x3_matrix(
-        100, 0,   0,
-        0,   100, 0,
-        0,   0,   100
+        1, 0,   0,
+        0,   -1, 0,
+        0,   0,   1
     )
-    if(false) then
-        model = load_model("models/duck.obj")
+    if(true) then
+        model = load_model("models/teapot.obj")
     else
         model = {
             -- Front
@@ -635,6 +636,12 @@ end
 
 y_value = 0
 function love.update(dt)
+    z_angle = z_angle + 0.1
+    rotation_matrix = srend_3x3_matrix(
+        math.cos(z_angle), 0, math.sin(z_angle),
+        0, 1, 0,
+        math.sin(z_angle), 0, math.cos(z_angle)
+    )
 end
 
 function love.draw()
@@ -680,26 +687,6 @@ function love.draw()
     }
     local transform = srend_mat3x3_mat3x3_mul(rotation_matrix, scale_matrix)
     srend_draw_mesh(canvas, model, 0, 0, transform)
-    -- srend_draw_triangle(
-    --     canvas,
-    --     srend_v3(1 ,  1, 0),
-    --     srend_v3(0 , -1, 0),
-    --     srend_v3(-1,  1, 0),
-    --     srend_color(1, 0, 0),
-    --     "fill",
-    --     nil,
-    --     nil,
-    --     nil,
-    --     transform
-    -- )
-    -- srend_draw_triangle(
-    --     canvas,
-    --     srend_v3(150, 400, 10),
-    --     srend_v3(350, 200, -10),
-    --     srend_v3(550, 400, 10),
-    --     srend_color(0, 1, 0),
-    --     "fill"
-    -- )
 
     -- Draw pixels
     srend_update_pixels(canvas)
