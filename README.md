@@ -2,6 +2,8 @@
 
 A basic CPU 3D renderer for learning purposes
 
+<img src="srend.gif"/>
+
 Uses love2d only to draw a texture but the texture is controlled 100% in the cpu
 
 - It's really slow
