@@ -511,9 +511,15 @@ function srend_draw_mesh(canvas, mesh, offset_x, offset_y, transform)
         local n1 = t[4]
         local n2 = t[5]
         local n3 = t[6]
-        local color = random_colors[(i%#random_colors) + 1]
+        local random_color = random_colors[(i%#random_colors) + 1]
 
-        srend_draw_triangle(canvas, v1, v2, v3, srend_color(1, 1, 1), "fill", n1, n2, n3, transform)
+        local use_random_color = true
+        local color = srend_color(1, 1, 1)
+        if(use_random_color) then
+            color = random_color
+        end
+
+        srend_draw_triangle(canvas, v1, v2, v3, color, "fill", n1, n2, n3, transform)
     end
 end
 
